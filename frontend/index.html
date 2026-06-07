@@ -338,7 +338,23 @@
     }
     .modal-stars .star { font-size: 1.8rem; cursor: pointer; }
 
-    .modal-location { font-size: 0.85rem; color: #555; margin-bottom: 1.2rem; }
+    .modal-location { font-size: 0.85rem; color: #555; margin-bottom: 0.8rem; }
+
+    .modal-rename {
+      display: none;
+      margin-bottom: 1rem;
+    }
+    .modal-rename input {
+      width: 100%;
+      padding: 0.55rem 0.8rem;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      text-align: center;
+      color: #333;
+    }
+    .modal-rename input:focus { outline: none; border-color: var(--red); }
+    .modal-rename label { font-size: 0.75rem; color: #888; display: block; margin-bottom: 0.3rem; }
 
     .modal-actions { display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap; }
 
@@ -457,6 +473,10 @@
     <h3 id="modal-name"></h3>
     <div class="modal-stars" id="modal-stars"></div>
     <div class="modal-location" id="modal-location"></div>
+    <div class="modal-rename" id="modal-rename">
+      <label>Name bearbeiten</label>
+      <input type="text" id="modal-name-input" placeholder="Spielname" />
+    </div>
     <div class="modal-actions">
       <button class="btn btn-primary" onclick="saveRating()">Speichern</button>
       <button class="btn btn-danger" id="modal-remove-btn" onclick="removeGame()">Entfernen</button>
@@ -673,6 +693,16 @@
     document.getElementById("modal-stars").innerHTML = modalStarsHtml(pendingRating);
     document.getElementById("modal-location").textContent = modalGame.location ? `📍 ${modalGame.location}` : "";
     document.getElementById("modal-remove-btn").style.display = (modalGame.scanned || isExtra) ? "inline-block" : "none";
+
+    const renameDiv = document.getElementById("modal-rename");
+    const nameInput = document.getElementById("modal-name-input");
+    if (isExtra) {
+      renameDiv.style.display = "block";
+      nameInput.value = name;
+    } else {
+      renameDiv.style.display = "none";
+    }
+
     document.getElementById("modal-overlay").classList.add("open");
   }
 
@@ -683,11 +713,27 @@
 
   async function saveRating() {
     if (!modalGame) return;
-    const enc = encodeURIComponent(modalGame.name);
-    const endpoint = modalIsExtra ? `/api/extra/rate/${enc}` : `/api/rate/${enc}`;
-    const fd = new FormData();
-    fd.append("rating", pendingRating);
-    await fetch(`${API}${endpoint}`, { method: "POST", body: fd });
+    const oldEnc = encodeURIComponent(modalGame.name);
+
+    // Rename if extra game and name changed
+    if (modalIsExtra) {
+      const newName = document.getElementById("modal-name-input").value.trim();
+      if (newName && newName !== modalGame.name) {
+        const fd = new FormData();
+        fd.append("new_name", newName);
+        await fetch(`${API}/api/extra/rename/${oldEnc}`, { method: "POST", body: fd });
+        modalGame.name = newName;
+      }
+    }
+
+    if (pendingRating > 0) {
+      const enc = encodeURIComponent(modalGame.name);
+      const endpoint = modalIsExtra ? `/api/extra/rate/${enc}` : `/api/rate/${enc}`;
+      const fd = new FormData();
+      fd.append("rating", pendingRating);
+      await fetch(`${API}${endpoint}`, { method: "POST", body: fd });
+    }
+
     closeModal();
     await loadAll();
   }

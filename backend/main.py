@@ -208,6 +208,20 @@ def rate_extra(game_name: str, rating: int = Form(...)):
     return {"ok": True}
 
 
+@app.post("/api/extra/rename/{game_name}")
+def rename_extra(game_name: str, new_name: str = Form(...)):
+    new_name = new_name.strip()
+    if not new_name:
+        raise HTTPException(status_code=400, detail="Name darf nicht leer sein")
+    extra = load_extra()
+    game = next((g for g in extra if g["name"] == game_name), None)
+    if not game:
+        raise HTTPException(status_code=404, detail="Spiel nicht gefunden")
+    game["name"] = new_name
+    save_extra(extra)
+    return {"ok": True, "new_name": new_name}
+
+
 @app.delete("/api/extra/{game_name}")
 def delete_extra(game_name: str):
     extra = load_extra()
