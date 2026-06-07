@@ -129,14 +129,16 @@ async def scan_image(
 
 
 @app.post("/api/rate/{game_name}")
-def rate_game(game_name: str, rating: int = Form(...)):
-    if rating < 1 or rating > 5:
-        raise HTTPException(status_code=400, detail="Bewertung muss zwischen 1 und 5 sein")
+def rate_game(game_name: str, rating: Optional[int] = Form(None), location: Optional[str] = Form(None)):
     scanned = load_scanned()
     if game_name not in scanned:
-        scanned[game_name] = {"location": None, "rating": rating}
-    else:
+        scanned[game_name] = {"location": None, "rating": None}
+    if rating is not None:
+        if rating < 1 or rating > 5:
+            raise HTTPException(status_code=400, detail="Bewertung muss zwischen 1 und 5 sein")
         scanned[game_name]["rating"] = rating
+    if location is not None:
+        scanned[game_name]["location"] = location if location != "" else None
     save_scanned(scanned)
     return {"ok": True}
 
@@ -196,14 +198,17 @@ async def scan_extra(
 
 
 @app.post("/api/extra/rate/{game_name}")
-def rate_extra(game_name: str, rating: int = Form(...)):
-    if rating < 1 or rating > 5:
-        raise HTTPException(status_code=400, detail="Bewertung muss zwischen 1 und 5 sein")
+def rate_extra(game_name: str, rating: Optional[int] = Form(None), location: Optional[str] = Form(None)):
     extra = load_extra()
     game = next((g for g in extra if g["name"] == game_name), None)
     if not game:
         raise HTTPException(status_code=404, detail="Spiel nicht gefunden")
-    game["rating"] = rating
+    if rating is not None:
+        if rating < 1 or rating > 5:
+            raise HTTPException(status_code=400, detail="Bewertung muss zwischen 1 und 5 sein")
+        game["rating"] = rating
+    if location is not None:
+        game["location"] = location if location != "" else None
     save_extra(extra)
     return {"ok": True}
 
