@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Eisenblätter's Spiele Sammlung</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --red: #c0392b;
+      --red-dark: #a93226;
+      --red-light: #fdecea;
+      --gold: #f39c12;
+      --gray: #bbb;
+      --bg: #f5f0e8;
+      --card-bg: #fff;
+      --shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: var(--bg);
+      min-height: 100vh;
+      color: #333;
+    }
+
+    /* HEADER */
+    header {
+      background: var(--red);
+      color: white;
+      padding: 1.2rem 1.5rem;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    header h1 { font-size: clamp(1.1rem, 4vw, 1.7rem); letter-spacing: 0.5px; }
+    header p { opacity: 0.85; margin-top: 0.2rem; font-size: 0.85rem; }
+
+    .stats {
+      text-align: center;
+      padding: 0.8rem 1rem;
+      color: #555;
+      font-size: 0.9rem;
+      background: white;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .stats span { font-weight: bold; color: var(--red); }
+
+    /* UPLOAD SECTION */
+    .upload-section {
+      background: white;
+      padding: 1.2rem 1rem;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .upload-inner {
+      max-width: 500px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.8rem;
+    }
+
+    .upload-tabs {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 0.6rem;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      background: white;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #666;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      border-color: var(--red);
+      background: var(--red-light);
+      color: var(--red);
+    }
+
+    .upload-box {
+      border: 2px dashed var(--red);
+      border-radius: 12px;
+      padding: 1.2rem;
+      text-align: center;
+      background: var(--red-light);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .upload-box:hover { background: #fad7d4; }
+    .upload-box input[type="file"] { display: none; }
+    .upload-box label {
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .upload-icon { font-size: 2rem; }
+    .upload-text { color: #333; font-size: 0.95rem; font-weight: 600; }
+    .upload-hint { color: #888; font-size: 0.75rem; }
+
+    .upload-controls {
+      display: flex;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+    }
+
+    select, .scan-btn {
+      flex: 1;
+      min-width: 120px;
+      padding: 0.65rem 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      border: 2px solid #ddd;
+    }
+
+    select:focus { outline: none; border-color: var(--red); }
+
+    .scan-btn {
+      background: var(--red);
+      color: white;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      display: none;
+    }
+    .scan-btn:hover { background: var(--red-dark); }
+    .scan-btn:disabled { background: #aaa; cursor: not-allowed; }
+
+    #preview-img {
+      max-width: 100%;
+      max-height: 160px;
+      border-radius: 8px;
+      display: none;
+      border: 2px solid #ddd;
+      object-fit: contain;
+      margin: 0 auto;
+    }
+
+    #result-msg {
+      padding: 0.7rem 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      display: none;
+      text-align: center;
+    }
+    .result-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .result-error   { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .result-warning { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+
+    /* MAIN CONTENT */
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1rem 1rem 4rem;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 1.5rem 0 0.8rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .section-header h2 {
+      font-size: 1.1rem;
+      color: #444;
+      border-left: 4px solid var(--red);
+      padding-left: 0.6rem;
+    }
+
+    .view-toggle {
+      display: flex;
+      gap: 0.4rem;
+    }
+
+    .view-btn {
+      background: white;
+      border: 2px solid #ddd;
+      border-radius: 6px;
+      padding: 0.3rem 0.6rem;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: all 0.2s;
+      line-height: 1;
+    }
+    .view-btn.active {
+      border-color: var(--red);
+      background: var(--red-light);
+    }
+
+    /* GRID VIEW */
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 0.8rem;
+    }
+
+    .game-card {
+      background: var(--card-bg);
+      border-radius: 10px;
+      padding: 0.75rem 0.6rem;
+      text-align: center;
+      border: 2px solid #e0e0e0;
+      transition: transform 0.15s, box-shadow 0.15s;
+      position: relative;
+      cursor: pointer;
+      user-select: none;
+    }
+    .game-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+    .game-card.scanned {
+      border-color: var(--red);
+      box-shadow: 0 2px 8px rgba(192,57,43,0.15);
+    }
+
+    .card-year { font-size: 0.65rem; color: #999; margin-bottom: 0.2rem; }
+    .card-name {
+      font-size: 0.8rem;
+      color: var(--gray);
+      font-weight: 400;
+      line-height: 1.3;
+      margin-bottom: 0.3rem;
+    }
+    .game-card.scanned .card-name { color: var(--red); font-weight: 700; }
+    .game-card.scanned .card-year { color: #e67e22; font-weight: 600; }
+
+    .card-location {
+      font-size: 0.65rem;
+      color: #888;
+      margin-top: 0.2rem;
+      display: none;
+    }
+    .game-card.scanned .card-location { display: block; }
+
+    .card-stars {
+      display: flex;
+      justify-content: center;
+      gap: 1px;
+      margin-top: 0.3rem;
+      min-height: 16px;
+    }
+    .star {
+      font-size: 0.75rem;
+      cursor: pointer;
+      color: #ddd;
+      transition: color 0.1s;
+      line-height: 1;
+    }
+    .star.filled { color: var(--gold); }
+    .star:hover, .star:hover ~ .star { color: var(--gold); }
+    .card-stars:hover .star { color: var(--gold); }
+    .card-stars:hover .star:hover ~ .star { color: #ddd; }
+
+    .checkmark {
+      position: absolute;
+      top: 5px;
+      right: 6px;
+      font-size: 0.7rem;
+      display: none;
+    }
+    .game-card.scanned .checkmark { display: block; }
+
+    /* LIST VIEW */
+    .game-list { display: flex; flex-direction: column; gap: 0.4rem; }
+    .list-item {
+      background: white;
+      border-radius: 8px;
+      padding: 0.7rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      border: 2px solid #e0e0e0;
+      cursor: pointer;
+      transition: box-shadow 0.15s;
+    }
+    .list-item:hover { box-shadow: var(--shadow); }
+    .list-item.scanned { border-color: var(--red); }
+
+    .list-year { font-size: 0.75rem; color: #999; min-width: 36px; }
+    .list-item.scanned .list-year { color: #e67e22; font-weight: 600; }
+
+    .list-name { flex: 1; font-size: 0.9rem; color: var(--gray); }
+    .list-item.scanned .list-name { color: var(--red); font-weight: 700; }
+
+    .list-location { font-size: 0.75rem; color: #888; min-width: 50px; text-align: right; }
+
+    .list-stars {
+      display: flex;
+      gap: 1px;
+    }
+    .list-stars .star { font-size: 0.85rem; }
+
+    .list-check { font-size: 0.8rem; min-width: 16px; }
+
+    /* MODAL */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: white;
+      border-radius: 14px;
+      padding: 1.5rem;
+      max-width: 340px;
+      width: 100%;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+      text-align: center;
+    }
+    .modal h3 { font-size: 1.1rem; margin-bottom: 0.3rem; color: #333; }
+    .modal .modal-year { font-size: 0.8rem; color: #999; margin-bottom: 1rem; }
+
+    .modal-stars {
+      display: flex;
+      justify-content: center;
+      gap: 0.4rem;
+      margin-bottom: 1rem;
+    }
+    .modal-stars .star { font-size: 1.8rem; cursor: pointer; }
+
+    .modal-location { font-size: 0.85rem; color: #555; margin-bottom: 1.2rem; }
+
+    .modal-actions { display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap; }
+
+    .btn {
+      padding: 0.55rem 1.2rem;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .btn-primary { background: var(--red); color: white; }
+    .btn-primary:hover { background: var(--red-dark); }
+    .btn-secondary { background: #eee; color: #444; }
+    .btn-secondary:hover { background: #ddd; }
+    .btn-danger { background: #f8d7da; color: #721c24; }
+    .btn-danger:hover { background: #f5c6cb; }
+
+    /* LOADER */
+    .loader {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 3px solid #fff;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 5px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* MOBILE */
+    @media (max-width: 480px) {
+      .gallery { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 0.6rem; }
+      .game-card { padding: 0.6rem 0.4rem; }
+      .upload-controls { flex-direction: column; }
+      select, .scan-btn { min-width: unset; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🎲 Eisenblätter's Spiele Sammlung</h1>
+  <p>Foto hochladen → Spiel automatisch erkennen</p>
+</header>
+
+<div class="stats">
+  <span id="count-scanned">0</span> von <span id="count-total">0</span> Spiel-des-Jahres-Titeln gesammelt
+  &nbsp;·&nbsp;
+  <span id="count-extra">0</span> weitere Spiele
+</div>
+
+<!-- UPLOAD -->
+<div class="upload-section">
+  <div class="upload-inner">
+
+    <div class="upload-tabs">
+      <button class="tab-btn active" id="tab-sdj" onclick="switchTab('sdj')">🏆 Spiel des Jahres</button>
+      <button class="tab-btn" id="tab-extra" onclick="switchTab('extra')">➕ Weiteres Spiel</button>
+    </div>
+
+    <div class="upload-box" id="upload-box">
+      <label for="file-input">
+        <span class="upload-icon">📷</span>
+        <span class="upload-text">Foto aufnehmen oder hochladen</span>
+        <span class="upload-hint">Kamera, Galerie oder Datei — JPG/PNG</span>
+      </label>
+      <input type="file" id="file-input" accept="image/*" capture="environment" />
+    </div>
+
+    <img id="preview-img" src="" alt="Vorschau" />
+
+    <div class="upload-controls">
+      <select id="location-select">
+        <option value="">📍 Standort wählen</option>
+        <option value="Eltern">Eltern</option>
+        <option value="Lasse">Lasse</option>
+        <option value="Simon">Simon</option>
+      </select>
+      <button class="scan-btn" id="scan-btn">Erkennen</button>
+    </div>
+
+    <div id="result-msg"></div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<main>
+  <!-- Spiel des Jahres -->
+  <div class="section-header">
+    <h2>🏆 Spiel des Jahres (1979–heute)</h2>
+    <div class="view-toggle">
+      <button class="view-btn active" id="view-grid-btn" onclick="setView('grid')" title="Kachelansicht">⊞</button>
+      <button class="view-btn" id="view-list-btn" onclick="setView('list')" title="Listenansicht">☰</button>
+    </div>
+  </div>
+  <div id="sdj-container"></div>
+
+  <!-- Weitere Spiele -->
+  <div class="section-header">
+    <h2>🎮 Weitere Spiele</h2>
+    <div class="view-toggle">
+      <button class="view-btn active" id="view-grid-extra-btn" onclick="setExtraView('grid')" title="Kachelansicht">⊞</button>
+      <button class="view-btn" id="view-list-extra-btn" onclick="setExtraView('list')" title="Listenansicht">☰</button>
+    </div>
+  </div>
+  <div id="extra-container"><p style="color:#aaa;font-size:0.9rem">Noch keine weiteren Spiele hinzugefügt.</p></div>
+</main>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModalOnOverlay(event)">
+  <div class="modal">
+    <div class="modal-year" id="modal-year"></div>
+    <h3 id="modal-name"></h3>
+    <div class="modal-stars" id="modal-stars"></div>
+    <div class="modal-location" id="modal-location"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="saveRating()">Speichern</button>
+      <button class="btn btn-danger" id="modal-remove-btn" onclick="removeGame()">Entfernen</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+    ? "http://localhost:8000" : "";
+
+  let games = [];
+  let extraGames = [];
+  let currentView = "grid";
+  let currentExtraView = "grid";
+  let currentTab = "sdj";
+  let modalGame = null;
+  let modalIsExtra = false;
+  let pendingRating = 0;
+
+  // ---- DATA ----
+  async function loadAll() {
+    const [gRes, eRes] = await Promise.all([
+      fetch(`${API}/api/games`),
+      fetch(`${API}/api/extra`),
+    ]);
+    games = await gRes.json();
+    extraGames = await eRes.json();
+    renderSdj();
+    renderExtra();
+    updateStats();
+  }
+
+  function updateStats() {
+    document.getElementById("count-scanned").textContent = games.filter(g => g.scanned).length;
+    document.getElementById("count-total").textContent = games.length;
+    document.getElementById("count-extra").textContent = extraGames.length;
+  }
+
+  // ---- STARS HTML ----
+  function starsHtml(rating, gameName, isExtra, mode = "card") {
+    let html = "";
+    for (let i = 1; i <= 5; i++) {
+      const filled = rating && i <= rating ? "filled" : "";
+      html += `<span class="star ${filled}" data-v="${i}" data-game="${encodeURIComponent(gameName)}" data-extra="${isExtra}"
+        onclick="event.stopPropagation(); quickRate('${encodeURIComponent(gameName)}', ${i}, ${isExtra})">★</span>`;
+    }
+    return html;
+  }
+
+  function modalStarsHtml(current) {
+    let html = "";
+    for (let i = 1; i <= 5; i++) {
+      const filled = current && i <= current ? "filled" : "";
+      html += `<span class="star ${filled}" data-v="${i}" onclick="selectModalStar(${i})">★</span>`;
+    }
+    return html;
+  }
+
+  // ---- RENDER SdJ ----
+  function renderSdj() {
+    const container = document.getElementById("sdj-container");
+    if (currentView === "grid") {
+      container.innerHTML = `<div class="gallery">${games.map(g => cardHtml(g, false)).join("")}</div>`;
+    } else {
+      container.innerHTML = `<div class="game-list">${games.map(g => listHtml(g, false)).join("")}</div>`;
+    }
+  }
+
+  function cardHtml(g, isExtra) {
+    const name = g.name;
+    const enc = encodeURIComponent(name);
+    return `
+      <div class="game-card ${g.scanned || g.rating !== undefined && g.rating !== null || g.location ? 'scanned' : ''}"
+           onclick="openModal('${enc}', ${isExtra})">
+        <div class="checkmark">✅</div>
+        <div class="card-year">${g.year}</div>
+        <div class="card-name">${name}</div>
+        <div class="card-location">${g.location ? '📍 ' + g.location : ''}</div>
+        <div class="card-stars">${starsHtml(g.rating, name, isExtra)}</div>
+      </div>`;
+  }
+
+  function listHtml(g, isExtra) {
+    const enc = encodeURIComponent(g.name);
+    const scannedClass = (g.scanned || g.location || g.rating) ? 'scanned' : '';
+    return `
+      <div class="list-item ${scannedClass}" onclick="openModal('${enc}', ${isExtra})">
+        <div class="list-year">${g.year}</div>
+        <div class="list-name">${g.name}</div>
+        <div class="list-location">${g.location ? '📍 ' + g.location : ''}</div>
+        <div class="list-stars">${starsHtml(g.rating, g.name, isExtra, 'list')}</div>
+        <div class="list-check">${(g.scanned || g.location) ? '✅' : ''}</div>
+      </div>`;
+  }
+
+  // ---- RENDER EXTRA ----
+  function renderExtra() {
+    const container = document.getElementById("extra-container");
+    if (!extraGames.length) {
+      container.innerHTML = `<p style="color:#aaa;font-size:0.9rem">Noch keine weiteren Spiele hinzugefügt.</p>`;
+      return;
+    }
+    if (currentExtraView === "grid") {
+      container.innerHTML = `<div class="gallery">${extraGames.map(g => cardHtml({...g, scanned: true}, true)).join("")}</div>`;
+    } else {
+      container.innerHTML = `<div class="game-list">${extraGames.map(g => listHtml({...g, scanned: true}, true)).join("")}</div>`;
+    }
+  }
+
+  // ---- VIEW TOGGLE ----
+  function setView(v) {
+    currentView = v;
+    document.getElementById("view-grid-btn").classList.toggle("active", v === "grid");
+    document.getElementById("view-list-btn").classList.toggle("active", v === "list");
+    renderSdj();
+  }
+
+  function setExtraView(v) {
+    currentExtraView = v;
+    document.getElementById("view-grid-extra-btn").classList.toggle("active", v === "grid");
+    document.getElementById("view-list-extra-btn").classList.toggle("active", v === "list");
+    renderExtra();
+  }
+
+  // ---- TABS ----
+  function switchTab(tab) {
+    currentTab = tab;
+    document.getElementById("tab-sdj").classList.toggle("active", tab === "sdj");
+    document.getElementById("tab-extra").classList.toggle("active", tab === "extra");
+  }
+
+  // ---- UPLOAD ----
+  const fileInput = document.getElementById("file-input");
+  const previewImg = document.getElementById("preview-img");
+  const scanBtn = document.getElementById("scan-btn");
+  const resultMsg = document.getElementById("result-msg");
+
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    previewImg.src = URL.createObjectURL(file);
+    previewImg.style.display = "block";
+    scanBtn.style.display = "inline-block";
+    resultMsg.style.display = "none";
+  });
+
+  scanBtn.addEventListener("click", async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const location = document.getElementById("location-select").value;
+
+    scanBtn.disabled = true;
+    scanBtn.innerHTML = '<span class="loader"></span>Wird erkannt…';
+    resultMsg.style.display = "none";
+
+    const formData = new FormData();
+    formData.append("file", file);
+    if (location) formData.append("location", location);
+
+    const endpoint = currentTab === "sdj" ? "/api/scan" : "/api/extra/scan";
+
+    try {
+      const res = await fetch(`${API}${endpoint}`, { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) {
+        showResult("error", `Fehler: ${data.detail || "Unbekannter Fehler"}`);
+      } else if (data.matched) {
+        const msg = currentTab === "extra" && data.new
+          ? `✅ Neues Spiel hinzugefügt: <strong>${data.game}</strong>`
+          : `✅ Erkannt: <strong>${data.game}</strong> — abgehakt!`;
+        showResult("success", msg);
+        await loadAll();
+      } else {
+        showResult("warning", `⚠️ Kein Spiel erkannt. Versuche ein deutlicheres Foto.`);
+      }
+    } catch (e) {
+      showResult("error", "Verbindungsfehler zum Server.");
+    }
+
+    scanBtn.disabled = false;
+    scanBtn.innerHTML = "Erkennen";
+  });
+
+  function showResult(type, html) {
+    resultMsg.className = `result-${type}`;
+    resultMsg.innerHTML = html;
+    resultMsg.style.display = "block";
+  }
+
+  // ---- QUICK RATE (click on star directly) ----
+  async function quickRate(encName, rating, isExtra) {
+    const name = decodeURIComponent(encName);
+    const endpoint = isExtra ? `/api/extra/rate/${encName}` : `/api/rate/${encName}`;
+    const fd = new FormData();
+    fd.append("rating", rating);
+    await fetch(`${API}${endpoint}`, { method: "POST", body: fd });
+    await loadAll();
+  }
+
+  // ---- MODAL ----
+  function openModal(encName, isExtra) {
+    const name = decodeURIComponent(encName);
+    modalIsExtra = isExtra;
+    const gameList = isExtra ? extraGames : games;
+    modalGame = gameList.find(g => g.name === name);
+    if (!modalGame) return;
+
+    pendingRating = modalGame.rating || 0;
+
+    document.getElementById("modal-year").textContent = modalGame.year;
+    document.getElementById("modal-name").textContent = name;
+    document.getElementById("modal-stars").innerHTML = modalStarsHtml(pendingRating);
+    document.getElementById("modal-location").textContent = modalGame.location ? `📍 ${modalGame.location}` : "";
+    document.getElementById("modal-remove-btn").style.display = (modalGame.scanned || isExtra) ? "inline-block" : "none";
+    document.getElementById("modal-overlay").classList.add("open");
+  }
+
+  function selectModalStar(v) {
+    pendingRating = v;
+    document.getElementById("modal-stars").innerHTML = modalStarsHtml(v);
+  }
+
+  async function saveRating() {
+    if (!modalGame) return;
+    const enc = encodeURIComponent(modalGame.name);
+    const endpoint = modalIsExtra ? `/api/extra/rate/${enc}` : `/api/rate/${enc}`;
+    const fd = new FormData();
+    fd.append("rating", pendingRating);
+    await fetch(`${API}${endpoint}`, { method: "POST", body: fd });
+    closeModal();
+    await loadAll();
+  }
+
+  async function removeGame() {
+    if (!modalGame) return;
+    const enc = encodeURIComponent(modalGame.name);
+    const endpoint = modalIsExtra ? `/api/extra/${enc}` : `/api/scanned/${enc}`;
+    await fetch(`${API}${endpoint}`, { method: "DELETE" });
+    closeModal();
+    await loadAll();
+  }
+
+  function closeModal() {
+    document.getElementById("modal-overlay").classList.remove("open");
+    modalGame = null;
+  }
+
+  function closeModalOnOverlay(e) {
+    if (e.target === document.getElementById("modal-overlay")) closeModal();
+  }
+
+  // ---- INIT ----
+  loadAll();
+</script>
+</body>
+</html>

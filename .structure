@@ -1,0 +1,9 @@
+spiel-des-jahres/
+├── backend/
+│   ├── main.py          # FastAPI Backend
+│   ├── games.json       # Alle Spiele des Jahres
+│   ├── requirements.txt
+│   └── scanned.json     # wird automatisch erstellt
+├── frontend/
+│   └── index.html       # Die komplette Web-App
+└── render.yaml          # Render.com Konfiguration
