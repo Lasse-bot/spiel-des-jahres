@@ -7,6 +7,8 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from typing import Optional
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 app = FastAPI()
 
@@ -18,40 +20,39 @@ app.add_middleware(
 )
 
 GAMES_FILE = Path(__file__).parent / "games.json"
-SCANNED_FILE = Path(__file__).parent / "scanned.json"
-EXTRA_FILE = Path(__file__).parent / "extra_games.json"
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 with open(GAMES_FILE) as f:
     GAMES = json.load(f)
 
 
-def load_scanned() -> dict:
-    if SCANNED_FILE.exists():
-        with open(SCANNED_FILE) as f:
-            data = json.load(f)
-            # migrate old list format to dict
-            if isinstance(data, list):
-                return {name: {"location": None, "rating": None} for name in data}
-            return data
-    return {}
+def get_conn():
+    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
 
-def save_scanned(scanned: dict):
-    with open(SCANNED_FILE, "w") as f:
-        json.dump(scanned, f, ensure_ascii=False, indent=2)
+def init_db():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS scanned (
+                    name TEXT PRIMARY KEY,
+                    location TEXT,
+                    rating INTEGER
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS extra_games (
+                    name TEXT PRIMARY KEY,
+                    year INTEGER,
+                    location TEXT,
+                    rating INTEGER
+                )
+            """)
+        conn.commit()
 
 
-def load_extra() -> list:
-    if EXTRA_FILE.exists():
-        with open(EXTRA_FILE) as f:
-            return json.load(f)
-    return []
-
-
-def save_extra(extra: list):
-    with open(EXTRA_FILE, "w") as f:
-        json.dump(extra, f, ensure_ascii=False, indent=2)
+init_db()
 
 
 def find_matching_game(detected_texts: list[str], game_list: list[dict]) -> str | None:
@@ -91,13 +92,16 @@ async def call_vision_api(image_data: bytes) -> list[str]:
 
 @app.get("/api/games")
 def get_games():
-    scanned = load_scanned()
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT name, location, rating FROM scanned")
+            rows = {r["name"]: r for r in cur.fetchall()}
     return [
         {
             **game,
-            "scanned": game["name"] in scanned,
-            "location": scanned.get(game["name"], {}).get("location"),
-            "rating": scanned.get(game["name"], {}).get("rating"),
+            "scanned": game["name"] in rows,
+            "location": rows.get(game["name"], {}).get("location"),
+            "rating": rows.get(game["name"], {}).get("rating"),
         }
         for game in GAMES
     ]
@@ -118,45 +122,50 @@ async def scan_image(
     if not matched:
         return {"matched": False, "game": None, "detected_text": " ".join(texts[:5])}
 
-    scanned = load_scanned()
-    scanned[matched] = {
-        "location": location,
-        "rating": scanned.get(matched, {}).get("rating"),
-    }
-    save_scanned(scanned)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO scanned (name, location, rating)
+                VALUES (%s, %s, NULL)
+                ON CONFLICT (name) DO UPDATE SET location = EXCLUDED.location
+            """, (matched, location or None))
+        conn.commit()
 
     return {"matched": True, "game": matched}
 
 
 @app.post("/api/rate/{game_name}")
 def rate_game(game_name: str, rating: Optional[int] = Form(None), location: Optional[str] = Form(None)):
-    scanned = load_scanned()
-    if game_name not in scanned:
-        scanned[game_name] = {"location": None, "rating": None}
-    if rating is not None:
-        if rating < 1 or rating > 5:
-            raise HTTPException(status_code=400, detail="Bewertung muss zwischen 1 und 5 sein")
-        scanned[game_name]["rating"] = rating
-    if location is not None:
-        scanned[game_name]["location"] = location if location != "" else None
-    save_scanned(scanned)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO scanned (name, location, rating)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (name) DO UPDATE SET
+                    rating = COALESCE(EXCLUDED.rating, scanned.rating),
+                    location = EXCLUDED.location
+            """, (game_name, location or None, rating))
+        conn.commit()
     return {"ok": True}
 
 
 @app.delete("/api/scanned/{game_name}")
 def remove_scanned(game_name: str):
-    scanned = load_scanned()
-    if game_name in scanned:
-        del scanned[game_name]
-        save_scanned(scanned)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM scanned WHERE name = %s", (game_name,))
+        conn.commit()
     return {"ok": True}
 
 
-# --- Extra games (non-Spiel des Jahres) ---
+# --- Extra games ---
 
 @app.get("/api/extra")
 def get_extra():
-    return load_extra()
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT name, year, location, rating FROM extra_games ORDER BY year, name")
+            return [dict(r) for r in cur.fetchall()]
 
 
 @app.post("/api/extra/scan")
@@ -173,43 +182,43 @@ async def scan_extra(
     if not texts:
         return {"matched": False, "game": None}
 
-    # Use the first detected text block as the game name
     raw_name = texts[0].strip().split("\n")[0].strip()
     if not raw_name or len(raw_name) < 2:
         return {"matched": False, "game": None, "detected_text": " ".join(texts[:3])}
 
-    extra = load_extra()
-    existing = next((g for g in extra if g["name"].lower() == raw_name.lower()), None)
-    if not existing:
-        import datetime
-        new_game = {
-            "name": raw_name,
-            "year": datetime.datetime.now().year,
-            "location": location,
-            "rating": None,
-        }
-        extra.append(new_game)
-        save_extra(extra)
-        return {"matched": True, "game": raw_name, "new": True}
-    else:
-        existing["location"] = location
-        save_extra(extra)
-        return {"matched": True, "game": raw_name, "new": False}
+    import datetime
+    year = datetime.datetime.now().year
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT name FROM extra_games WHERE LOWER(name) = LOWER(%s)", (raw_name,))
+            existing = cur.fetchone()
+            if not existing:
+                cur.execute(
+                    "INSERT INTO extra_games (name, year, location, rating) VALUES (%s, %s, %s, NULL)",
+                    (raw_name, year, location or None)
+                )
+                new = True
+            else:
+                cur.execute("UPDATE extra_games SET location = %s WHERE LOWER(name) = LOWER(%s)", (location or None, raw_name))
+                raw_name = existing["name"]
+                new = False
+        conn.commit()
+
+    return {"matched": True, "game": raw_name, "new": new}
 
 
 @app.post("/api/extra/rate/{game_name}")
 def rate_extra(game_name: str, rating: Optional[int] = Form(None), location: Optional[str] = Form(None)):
-    extra = load_extra()
-    game = next((g for g in extra if g["name"] == game_name), None)
-    if not game:
-        raise HTTPException(status_code=404, detail="Spiel nicht gefunden")
-    if rating is not None:
-        if rating < 1 or rating > 5:
-            raise HTTPException(status_code=400, detail="Bewertung muss zwischen 1 und 5 sein")
-        game["rating"] = rating
-    if location is not None:
-        game["location"] = location if location != "" else None
-    save_extra(extra)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE extra_games SET
+                    rating = COALESCE(%s, rating),
+                    location = %s
+                WHERE name = %s
+            """, (rating, location or None, game_name))
+        conn.commit()
     return {"ok": True}
 
 
@@ -218,20 +227,19 @@ def rename_extra(game_name: str, new_name: str = Form(...)):
     new_name = new_name.strip()
     if not new_name:
         raise HTTPException(status_code=400, detail="Name darf nicht leer sein")
-    extra = load_extra()
-    game = next((g for g in extra if g["name"] == game_name), None)
-    if not game:
-        raise HTTPException(status_code=404, detail="Spiel nicht gefunden")
-    game["name"] = new_name
-    save_extra(extra)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE extra_games SET name = %s WHERE name = %s", (new_name, game_name))
+        conn.commit()
     return {"ok": True, "new_name": new_name}
 
 
 @app.delete("/api/extra/{game_name}")
 def delete_extra(game_name: str):
-    extra = load_extra()
-    extra = [g for g in extra if g["name"] != game_name]
-    save_extra(extra)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM extra_games WHERE name = %s", (game_name,))
+        conn.commit()
     return {"ok": True}
 
 
