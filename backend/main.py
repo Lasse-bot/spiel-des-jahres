@@ -96,6 +96,25 @@ async def call_vision_api(image_data: bytes) -> list[str]:
     return [a["description"] for a in annotations]
 
 
+class ImportScanned(BaseModel):
+    name: str
+    location: Optional[str] = None
+
+
+@app.post("/api/scanned/import")
+def import_scanned(games: List[ImportScanned]):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            for g in games:
+                cur.execute("""
+                    INSERT INTO scanned (name, location, rating)
+                    VALUES (%s, %s, NULL)
+                    ON CONFLICT (name) DO UPDATE SET location = EXCLUDED.location
+                """, (g.name, g.location))
+        conn.commit()
+    return {"ok": True, "imported": len(games)}
+
+
 @app.get("/api/games")
 def get_games():
     with get_conn() as conn:
