@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 from typing import Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -241,6 +242,64 @@ def delete_extra(game_name: str):
             cur.execute("DELETE FROM extra_games WHERE name = %s", (game_name,))
         conn.commit()
     return {"ok": True}
+
+
+@app.get("/admin", response_class=HTMLResponse)
+def admin():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT name, location, rating FROM scanned ORDER BY name")
+            scanned = cur.fetchall()
+            cur.execute("SELECT name, year, location, rating FROM extra_games ORDER BY year, name")
+            extra = cur.fetchall()
+
+    def stars(r):
+        return ("★" * r + "☆" * (5 - r)) if r else "—"
+
+    scanned_rows = "".join(
+        f"<tr><td>{r['name']}</td><td>{r['location'] or '—'}</td><td>{stars(r['rating'])}</td></tr>"
+        for r in scanned
+    )
+    extra_rows = "".join(
+        f"<tr><td>{r['year']}</td><td>{r['name']}</td><td>{r['location'] or '—'}</td><td>{stars(r['rating'])}</td></tr>"
+        for r in extra
+    )
+
+    return f"""
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+      <meta charset="UTF-8"/>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+      <title>Admin — Eisenblätter's Spiele</title>
+      <style>
+        body {{ font-family: Segoe UI, sans-serif; background: #f5f0e8; padding: 2rem; }}
+        h1 {{ color: #c0392b; margin-bottom: 0.3rem; }}
+        h2 {{ color: #444; margin: 2rem 0 0.5rem; }}
+        table {{ border-collapse: collapse; width: 100%; max-width: 700px; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }}
+        th {{ background: #c0392b; color: white; padding: 0.6rem 1rem; text-align: left; }}
+        td {{ padding: 0.5rem 1rem; border-bottom: 1px solid #eee; }}
+        tr:last-child td {{ border-bottom: none; }}
+        .count {{ color: #888; font-size: 0.9rem; }}
+      </style>
+    </head>
+    <body>
+      <h1>🎲 Eisenblätter's Spiele — Admin</h1>
+
+      <h2>🏆 Spiel des Jahres <span class="count">({len(scanned)} gesammelt)</span></h2>
+      <table>
+        <tr><th>Name</th><th>Standort</th><th>Bewertung</th></tr>
+        {scanned_rows or '<tr><td colspan="3" style="color:#aaa">Noch keine Spiele</td></tr>'}
+      </table>
+
+      <h2>🎮 Weitere Spiele <span class="count">({len(extra)} gesamt)</span></h2>
+      <table>
+        <tr><th>Jahr</th><th>Name</th><th>Standort</th><th>Bewertung</th></tr>
+        {extra_rows or '<tr><td colspan="4" style="color:#aaa">Noch keine Spiele</td></tr>'}
+      </table>
+    </body>
+    </html>
+    """
 
 
 # Serve frontend in production
