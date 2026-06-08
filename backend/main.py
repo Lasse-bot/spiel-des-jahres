@@ -7,7 +7,8 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
-from typing import Optional
+from pydantic import BaseModel
+from typing import Optional, List
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
@@ -246,6 +247,26 @@ def delete_extra(game_name: str):
             cur.execute("DELETE FROM extra_games WHERE name = %s", (game_name,))
         conn.commit()
     return {"ok": True}
+
+
+class ImportGame(BaseModel):
+    name: str
+    year: int
+    location: Optional[str] = None
+
+
+@app.post("/api/extra/import")
+def import_extra(games: List[ImportGame]):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            for g in games:
+                cur.execute("""
+                    INSERT INTO extra_games (name, year, location, rating)
+                    VALUES (%s, %s, %s, NULL)
+                    ON CONFLICT (name) DO UPDATE SET location = EXCLUDED.location
+                """, (g.name, g.year, g.location))
+        conn.commit()
+    return {"ok": True, "imported": len(games)}
 
 
 @app.get("/admin", response_class=HTMLResponse)
