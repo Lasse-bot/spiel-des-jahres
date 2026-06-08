@@ -29,6 +29,8 @@ with open(GAMES_FILE) as f:
 
 
 def get_conn():
+    if not DATABASE_URL:
+        raise HTTPException(status_code=500, detail="DATABASE_URL nicht gesetzt")
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
 
@@ -53,7 +55,9 @@ def init_db():
         conn.commit()
 
 
-init_db()
+@app.on_event("startup")
+def startup():
+    init_db()
 
 
 def find_matching_game(detected_texts: list[str], game_list: list[dict]) -> str | None:
